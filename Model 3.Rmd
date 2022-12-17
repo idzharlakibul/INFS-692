@@ -1,0 +1,272 @@
+---
+title: "Model 3"
+author: "Idzhar A. Lakibul"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#K-means Clustering
+```{r, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(gridExtra)
+library(factoextra)
+library(tidyverse)
+library(cluster)
+library(readr)
+library(mclust)
+library(tidyr)
+library(tibble)
+library(purrr)
+library(utils)
+```
+
+```{r, message=FALSE}
+radiomics_completedata <- read_csv("C:/STAT 371/Final Project/radiomics_completedata.csv")
+ View(radiomics_completedata)
+ Rad<-radiomics_completedata
+```
+
+#To remove any missing value that might be present in the data, type this:
+
+```{r, message=FALSE}
+Rad <- na.omit(Rad)
+```
+
+#we start by scaling/standardizing the data
+
+```{r, message=FALSE}
+Rad <- scale(Rad[,-c(1,2)])
+head(Rad)
+```
+#function to compute total within-cluster sum of square 
+```{r, message=FALSE}
+set.seed(123)
+wss <- function(k) {
+  kmeans(Rad, k, nstart = 10 )$tot.withinss
+}
+```
+# Compute and plot wss for k = 1 to k = 20
+```{r, message=FALSE}
+k.values <- 1:20
+```
+# extract wss for 2-15 clusters
+```{r, message=FALSE}
+wss_values <- map_dbl(k.values, wss)
+plot(k.values, wss_values,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+#or use thE silhouette
+```{r, message=FALSE}
+fviz_nbclust(Rad, kmeans, method = "silhouette")
+```
+# compute gap statistic
+```{r, message=FALSE}
+set.seed(123)
+gap_stat <- clusGap(Rad, FUN = kmeans, nstart = 25,
+                    K.max = 10, B = 50)
+```
+# Print the result
+```{r, message=FALSE}
+print(gap_stat, method = "firstmax")
+fviz_gap_stat(gap_stat)
+```
+# Compute k-means clustering with k = 2
+```{r, message=FALSE}
+set.seed(123)
+final <- kmeans(Rad, 2, nstart = 25)
+print(final)
+```
+#final data
+```{r, message=FALSE}
+fviz_cluster(final, data = Rad)
+
+```
+
+#Hieralchical method
+
+```{r, message=FALSE}
+d <- dist(Rad, method = "euclidean")
+```
+
+# methods to assess
+
+```{r, message=FALSE}
+set.seed(123)
+```
+
+```{r, message=FALSE}
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+```
+
+#function to compute coefficient
+
+```{r, message=FALSE}
+ac <- function(x) {
+  agnes(Rad, method = x)$ac
+}
+```
+
+#Get agglomerative coefficient for each linkage method
+
+```{r, message=FALSE}
+purrr::map_dbl(m, ac)
+```
+
+#compute divisive hierarchical clustering
+
+```{r, message=FALSE}
+diana <- diana(Rad)
+diana$dc
+```
+
+#Plot cluster results
+
+```{r, message=FALSE}
+p_EM <- fviz_nbclust(Rad, FUN = hcut, method = "wss", 
+                   k.max = 10) +
+  ggtitle("(A) Elbow method")
+```
+
+```{r, message=FALSE}
+p_SM <- fviz_nbclust(Rad, FUN = hcut, method = "silhouette", 
+                   k.max = 10) +
+  ggtitle("(B) Silhouette method")
+```
+
+```{r, message=FALSE}
+p_GS <- fviz_nbclust(Rad, FUN = hcut, method = "gap_stat", 
+                   k.max = 10) +
+  ggtitle("(C) Gap statistic")
+```
+
+```{r, message=FALSE}
+gridExtra::grid.arrange(p_EM, p_SM, p_GS, nrow = 1)
+```
+
+#Dendorgram for the Radiomic dataset
+
+```{r, message=FALSE}
+hc_final <- hclust(d, method = "ward.D2" )
+```
+
+```{r, message=FALSE}
+dend_plot <- fviz_dend(hc_final)
+```
+
+```{r, message=FALSE}
+dend_data <- attr(dend_plot, "dendrogram")
+```
+
+```{r, message=FALSE}
+dend_cuts <- cut(dend_data, h = 70.5)
+```
+
+```{r, message=FALSE}
+fviz_dend(dend_cuts$lower[[1]])
+```
+
+#Number of members in each cluster
+
+```{r, message=FALSE}
+hc_final <- hclust(d, method = "ward.D2" )
+```
+
+```{r, message=FALSE}
+sub_grp <- cutree(hc_final, k = 2)
+```
+
+```{r, message=FALSE}
+table(sub_grp)
+```
+
+# Plot full dendogram
+
+```{r, message=FALSE}
+fviz_dend(
+  hc_final,
+  k = 2,
+  horiz = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  k_colors = "jco",
+  cex = 0.1)
+```
+
+
+# Model Based
+
+# Apply GMM model with 3 components
+
+
+```{r, message=FALSE}
+Rad_mbc <- Mclust(Rad, G = 3)
+```
+
+# Plot results
+
+```{r, message=FALSE}
+plot(Rad_mbc, what = "density")
+plot(Rad_mbc, what = "uncertainty")
+```
+
+# Observations with high uncertainty
+
+```{r, message=FALSE}
+sort(Rad_mbc$uncertainty, decreasing = TRUE) %>% head()
+summary(Rad_mbc)
+```
+
+```{r, message=FALSE}
+Rad_optimal_mbc <- Mclust(Rad)
+summary(Rad_optimal_mbc)
+```
+
+# Plot
+
+```{r, message=FALSE}
+legend_args <- list(x = "bottomright", ncol = 5)
+plot(Rad_optimal_mbc, what = 'BIC', legendArgs = legend_args)
+plot(Rad_optimal_mbc, what = 'classification')
+plot(Rad_optimal_mbc, what = 'uncertainty')
+```
+
+```{r, message=FALSE}
+Rad_mc <- Mclust(Rad, 1:20)
+
+summary(Rad_mc)
+```
+
+```{r, message=FALSE}
+plot(Rad_mc, what = 'BIC', 
+     legendArgs = list(x = "bottomright", ncol = 5))
+```
+
+```{r, message=FALSE}
+probabilities <- Rad_mc$z 
+probabilities
+```
+
+
+
+
+
+
+
+
+
+
+
+
