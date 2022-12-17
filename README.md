@@ -28,7 +28,9 @@ Model 3 -  3 different clustering technique
                         Application
  
 To deliver:
+
 3 (Model1, Model2, and Model13) R Markdown
+
 3 (Model1, Model2, and Model13) PDF Files from an R Markdown 
                         
     
